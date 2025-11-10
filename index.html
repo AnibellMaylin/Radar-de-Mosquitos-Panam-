@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Radar de Mosquitos Panamá Centro 2025</title>
+
+  <!-- Leaflet -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+
+  <!-- EmailJS (envío a correo sin servidor) -->
+  <script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#ffffff; --text:#1b1f23; --muted:#5f6b75; --line:#e6e9ec;
+      --card:#ffffff; --accent:#1565c0; --accent-weak:#e7f1ff; --danger:#c62828;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+         background:var(--bg); color:var(--text);}
+    header,main,footer{max-width:1100px;margin:0 auto;padding:16px}
+    header{padding-top:24px}
+    h1{margin:0 0 6px 0;font-weight:800;letter-spacing:.2px}
+    .grid{display:grid;gap:16px}
+    .two{grid-template-columns:1fr}
+    @media (min-width:920px){.two{grid-template-columns:1fr 1fr}}
+    .card{
+      background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px;
+      box-shadow:0 1px 0 rgba(16,24,40,.02);
+    }
+    .card h2{margin:0 0 8px 0; font-size:18px}
+
+    label{font-size:13px;color:#3d4853;margin-bottom:6px;display:block}
+    input, select, textarea, button{
+      width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--line);
+      background:#fff; color:var(--text); outline:none;
+    }
+    input::placeholder, textarea::placeholder{color:#9aa5af}
+    input[type="date"]{background:#fff;color:var(--text)}
+    textarea{min-height:92px;resize:vertical}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .hint{font-size:12px;color:var(--muted);margin-top:6px}
+    .actions{display:flex;gap:10px;margin-top:10px}
+    .btn{background:#f6f8fa;border:1px solid var(--line);cursor:pointer}
+    .btn:hover{background:#eef2f6}
+    .btn-primary{background:var(--accent);border:none;color:#fff;font-weight:700}
+    .btn-primary:hover{filter:brightness(.95)}
+    .btn-danger{background:var(--danger);border:none;color:#fff;font-weight:700}
+    .ok{color:#2e7d32}.err{color:var(--danger)}
+
+    #map{width:100%;height:520px;border-radius:12px;border:1px solid var(--line)}
+
+    .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;
+           background:var(--accent-weak); color:#0b3b87; border:1px solid #cfe0ff}
+
+    /* Subir foto con botón/flecha */
+    .file-wrap{display:flex;align-items:center;gap:10px}
+    .file-hidden{position:absolute;left:-9999px}
+    .file-btn{
+      display:inline-flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;
+      background:#f6f8fa;border:1px solid var(--line);cursor:pointer;user-select:none
+    }
+    .file-btn:hover{background:#eef2f6}
+    .file-name{font-size:12px;color:var(--muted)}
+
+    footer{color:var(--muted);font-size:13px;padding-bottom:32px}
+  </style>
+</head>
+<body>
+<header>
+  <h1>Radar de Mosquitos Panamá Centro 2025</h1>
+  <p>Conectar comunidad, ambiente y salud.</p>
+</header>
+
+<main class="grid two">
+  <!-- FORMULARIO -->
+  <section class="card">
+    <h2>Formulario de Reporte (denuncias)</h2>
+    <form id="reporteForm" autocomplete="on">
+      <label>Nombre (opcional)
+        <input type="text" name="nombre" placeholder="Tu nombre">
+      </label>
+
+      <div class="row">
+        <label>Corregimiento / Ubicación
+          <input type="text" name="corregimiento" id="corregimiento" placeholder="Ej. Aguadulce, Panamá" required>
+        </label>
+        <label>Usar GPS (opcional)
+          <button type="button" id="gpsBtn" class="btn">Obtener coordenadas</button>
+          <div class="hint" id="gpsHint">Lat/Lng: <span id="latlngPreview">–</span></div>
+        </label>
+      </div>
+
+      <div class="row">
+        <label>Fecha de la observación
+          <input type="date" name="fecha" required>
+        </label>
+        <label>Tipo de reporte
+          <select name="tipo" required>
+            <option value="criadero">Criadero</option>
+            <option value="incremento_mosquitos">Incremento de mosquitos</option>
+            <option value="caso_sospechoso">Caso sospechoso</option>
+          </select>
+        </label>
+      </div>
+
+      <label>Comentario (opcional)
+        <textarea name="comentario" placeholder="Descripciones, opiniones, etc."></textarea>
+      </label>
+
+      <!-- Subir foto (flecha) -->
+      <label>Subir foto (opcional)</label>
+      <div class="file-wrap">
+        <label for="fotoInput" class="file-btn" id="fotoBtn" title="Seleccionar imagen">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 4v12m0 0l-5-5m5 5l5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span>Elegir</span>
+        </label>
+        <input type="file" accept="image/*" id="fotoInput" class="file-hidden">
+        <span class="file-name" id="fileName">Sin archivo seleccionado</span>
+      </div>
+      <div class="hint">Las fotografías se utilizan para fines educativos.</div>
+
+      <div class="actions">
+        <button class="btn btn-primary" type="submit">Enviar reporte</button>
+        <button class="btn btn-danger" type="button" id="borrarLocal">Borrar datos</button>
+      </div>
+      <p class="hint" id="estadoEnvio"></p>
+    </form>
+  </section>
+
+  <!-- MAPA -->
+  <section class="card">
+    <h2>Mapa interactivo</h2>
+    <div id="map"></div>
+    <p class="hint">marcador verde: criadero.</p>
+    <p class="hint">marcador naranja: incremento.</p>
+    <p class="hint">marcador rojo: sospechoso.</p>
+  </section>
+
+  <!-- EDUCACIÓN -->
+  <section class="card">
+    <h2>Sección educativa</h2>
+    <ul>
+      <li>Infografía: <a href="https://www.paho.org/es/temas/dengue" target="_blank" rel="noopener">Cómo eliminar criaderos y síntomas del dengue (OPS/PAHO)</a></li>
+      <li>Video corto: <a href="https://www.youtube.com/watch?v=FBE76526dy4" target="_blank" rel="noopener">Prevención y control del dengue</a></li>
+    </ul>
+  </section>
+
+  <!-- CONTACTO -->
+  <section class="card">
+    <h2>Contacto</h2>
+    <p>Correo del proyecto: <a href="mailto:bernalaixa25@gmail.com">bernalaixa25@gmail.com</a></p>
+    <p>WhatsApp comunitario: <a href="https://chat.whatsapp.com/HjaJKEdzFCc09unpnrMbu8" target="_blank" rel="noopener">Abrir chat</a></p>
+  </section>
+</main>
+
+<footer>
+  <p>©2025 Todos los derechos reservados. Radar de Mosquitos Panamá Centro 2025. Aixa Bernal.</p>
+</footer>
+
+<script>
+  const EMAILJS_PUBLIC_KEY = "Wy9rV-3vPIZLShIcU";   
+  const EMAILJS_SERVICE_ID = "service_k0s5q8h";   
+  const EMAILJS_TEMPLATE_ID = "template_q3mdnc9"; 
+  if (EMAILJS_PUBLIC_KEY) {
+  emailjs.init(EMAILJS_PUBLIC_KEY);
+  }
+
+  // ====== 1) Mapa Leaflet (con selección manual y precisión) ======
+  const map = L.map('map').setView([8.9833, -79.5167], 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19, attribution: '&copy; OpenStreetMap'
+  }).addTo(map);
+
+  // Referencias para UI de ubicación (usadas por GPS y clic en mapa)
+  const latlngPreview = document.getElementById('latlngPreview');
+  const ubicacionInput = document.getElementById('corregimiento');
+  let lastLatLng = null;     // última ubicación elegida (GPS o clic)
+  let gpsMarker = null;      // marcador principal
+  let gpsCircle = null;      // círculo de precisión
+
+  // Función única para fijar el punto (la usan GPS y el clic en el mapa)
+  function setPoint(lat, lng, source='Mapa', accuracy=null) {
+    lastLatLng = { lat: +lat, lng: +lng };
+    const txt = `${lastLatLng.lat}, ${lastLatLng.lng}` + (accuracy ? ` (±${Math.round(accuracy)} m)` : '');
+    if (latlngPreview) latlngPreview.textContent = txt;
+
+    map.setView([lastLatLng.lat, lastLatLng.lng], 16);
+    if (gpsMarker) map.removeLayer(gpsMarker);
+    if (gpsCircle) map.removeLayer(gpsCircle);
+
+    gpsMarker = L.marker([lastLatLng.lat, lastLatLng.lng]).addTo(map)
+      .bindPopup(`${source} seleccionado`).openPopup();
+
+    if (accuracy && accuracy < 2000) {
+      gpsCircle = L.circle([lastLatLng.lat, lastLatLng.lng], {
+        radius: accuracy, color: '#1565c0', fillOpacity: 0.08
+      }).addTo(map);
+    }
+
+    if (ubicacionInput) {
+      ubicacionInput.value = `${lastLatLng.lat}, ${lastLatLng.lng}`;
+    }
+  }
+
+  // Permitir seleccionar punto manualmente con clic
+  map.on('click', (e) => {
+    const { lat, lng } = e.latlng;
+    setPoint(lat, lng, 'Mapa');
+  });
+
+  const tipoColors = {
+    'criadero': '#2bb673',
+    'incremento_mosquitos': '#ff9f43',
+    'caso_sospechoso': '#ff5252'
+  };
+
+  function iconFor(tipo) {
+    const color = tipoColors[tipo] || '#7ad0ff';
+    const svg = encodeURIComponent(`
+      <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">
+        <circle cx="18" cy="18" r="10" fill="${color}" />
+        <circle cx="18" cy="18" r="4" fill="white"/>
+      </svg>
+    `);
+    return L.icon({
+      iconUrl: 'data:image/svg+xml;utf8,' + svg,
+      iconSize: [36, 36],
+      iconAnchor: [18, 18],
+      popupAnchor: [0, -14]
+    });
+  }
+
+  function addMarker(r) {
+    if (!r.lat || !r.lng) return;
+    L.marker([r.lat, r.lng], { icon: iconFor(r.tipo) })
+      .addTo(map)
+      .bindPopup(
+        `<b>${(r.tipo || '').replace('_',' ')}</b><br/>
+         ${r.corregimiento || ''}<br/>
+         ${r.fecha || ''}<br/>
+         ${r.comentario ? ('“'+r.comentario+'”') : ''}`
+      );
+  }
+
+  // ====== 2) LocalStorage ======
+  function getLocalReports() {
+    try { return JSON.parse(localStorage.getItem('reportes') || '[]'); }
+    catch(_) { return []; }
+  }
+  function setLocalReports(arr) {
+    localStorage.setItem('reportes', JSON.stringify(arr));
+  }
+  getLocalReports().forEach(addMarker);
+
+  // ====== 3) GPS mejorado: precisión + autocompletado ======
+  const gpsBtn = document.getElementById('gpsBtn');
+
+  gpsBtn.addEventListener('click', () => {
+    if (!navigator.geolocation) {
+      if (latlngPreview) latlngPreview.textContent = 'GPS no soportado';
+      return;
+    }
+    gpsBtn.disabled = true; gpsBtn.textContent = 'Buscando…';
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const acc = pos.coords.accuracy; // metros
+
+        // Si la precisión es muy mala, alerta y no fija el punto
+        if (acc && acc > 1500) {
+          if (latlngPreview) {
+            latlngPreview.textContent = `Lectura imprecisa (±${Math.round(acc)} m). Haz clic en el mapa para fijar el punto.`;
+          }
+          gpsBtn.textContent = 'Intentar otra vez';
+          gpsBtn.disabled = false;
+          return;
+        }
+
+        setPoint(lat, lng, 'GPS', acc);
+        gpsBtn.textContent = 'Coordenadas listas';
+        gpsBtn.disabled = false;
+      },
+      (err) => {
+        if (latlngPreview) latlngPreview.textContent = 'No se pudo obtener ubicación. Usa el mapa.';
+        gpsBtn.textContent = 'Intentar otra vez';
+        gpsBtn.disabled = false;
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  });
+
+  // ====== 4) Formulario ======
+  const form = document.getElementById('reporteForm');
+  const estado = document.getElementById('estadoEnvio');
+  const fotoInput = document.getElementById('fotoInput');
+  const fileName = document.getElementById('fileName');
+
+  fotoInput.addEventListener('change', () => {
+    fileName.textContent = fotoInput.files && fotoInput.files[0]
+      ? fotoInput.files[0].name
+      : 'Sin archivo seleccionado';
+  });
+
+  function clearStatus() { estado.textContent = ''; estado.className = 'hint'; }
+  function ok(msg) { estado.textContent = msg; estado.className = 'hint ok'; }
+  function err(msg) { estado.textContent = msg; estado.className = 'hint err'; }
+
+  async function sendEmailJS(payload) {
+    if (EMAILJS_PUBLIC_KEY === "TU_PUBLIC_KEY") return { status: 'skip' }; // sin configurar
+    try {
+      const result = await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, payload);
+      return { status: 'ok', result };
+    } catch (e) {
+      return { status: 'error', error: e };
+    }
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault(); clearStatus();
+
+    const data = Object.fromEntries(new FormData(form).entries());
+    const fechaISO = data.fecha || new Date().toISOString().slice(0,10);
+
+    let fotoName = '';
+    if (fotoInput.files && fotoInput.files[0]) {
+      fotoName = fotoInput.files[0].name;
+    }
+
+    const reporte = {
+      nombre: data.nombre || '',
+      corregimiento: data.corregimiento || '',
+      fecha: fechaISO,
+      tipo: data.tipo,
+      comentario: data.comentario || '',
+      lat: lastLatLng?.lat || null,
+      lng: lastLatLng?.lng || null,
+      foto: fotoName
+    };
+
+    // Guardar local + marcador inmediato
+    const arr = getLocalReports(); arr.push(reporte); setLocalReports(arr);
+    addMarker(reporte);
+
+    // Enviar por email (si está configurado)
+    const resMail = await sendEmailJS({
+      nombre: reporte.nombre || 'Anónimo',
+      corregimiento: reporte.corregimiento,
+      fecha: reporte.fecha,
+      tipo: reporte.tipo,
+      comentario: reporte.comentario,
+      lat: reporte.lat, lng: reporte.lng,
+      foto: reporte.foto || '(sin adjunto)'
+    });
+
+    if (resMail.status === 'ok' || resMail.status === 'skip') {
+      ok(resMail.status === 'skip'
+        ? 'Reporte guardado localmente. (Configura EmailJS para envío a correo).'
+        : '¡Reporte enviado y mapeado!');
+      form.reset(); lastLatLng = null; if (latlngPreview) latlngPreview.textContent = '–';
+      fileName.textContent = 'Sin archivo seleccionado';
+    } else {
+      err('El reporte se guardó localmente, pero falló el envío por correo.');
+      console.error(resMail.error);
+    }
+
+  });
+
+  // Botón limpiar local
+  document.getElementById('borrarLocal').addEventListener('click', () => {
+    if (confirm('¿Borrar todos los reportes guardados localmente en este navegador?')) {
+      localStorage.removeItem('reportes');
+      location.reload();
+    }
+  });
+</script>
+</body>
+</html>
